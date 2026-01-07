@@ -124,12 +124,12 @@ yarn test
 ### Performance Benefits
 
 Traditional Solana gameplay:
-- **~1-2 seconds per move** (9 moves ≈ 9-18 seconds total)
+- **~1500-2000ms per move** on Solana
 
 With Ephemeral Rollups:
-- **~50-200ms per move** on ER (9 moves ≈ 0.5-2 seconds total)
+- **~700-800ms per move** on ER 
 - **Single commit transaction** to finalize on Solana
-- **90%+ faster gameplay experience**
+- **60%+ faster gameplay experience**
 
 ## Program Structure
 
