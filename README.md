@@ -278,6 +278,6 @@ This example is ideal for learning how to build:
 
 ## Support
 
-- Discord: [MagicBlock Community](https://discord.gg/magicblock)
-- Twitter: [@MagicBlock](https://twitter.com/MagicBlockGG)
+- Discord: [MagicBlock Community](https://discord.com/invite/MBkdC3gxcv)
+- Twitter: [@MagicBlock](https://x.com/magicblock)
 
