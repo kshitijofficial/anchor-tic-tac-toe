@@ -1,0 +1,17 @@
+*.DS_Store
+.idea
+**/*.rs.bk
+**/target/*
+**/node_modules
+**/test-ledger
+**/.anchor
+**/.bolt
+**/.yarn
+**/.next/
+**/.env
+
+# Keep the keypair for deployment
+!/anchor-tic-tac-toe/target/deploy/tic_tac-keypair.json
+
+# But don't ignore the target/idl/ directory
+!**/anchor-tic-tac-toe/target/idl/
