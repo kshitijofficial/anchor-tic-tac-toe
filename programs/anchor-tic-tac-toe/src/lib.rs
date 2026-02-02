@@ -3,12 +3,14 @@ use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 
-declare_id!("BTrnniVLXdKW2yeWZgrASoStVEKxS3PRMYuE3DRCJSFy");
+declare_id!("9eSXvKJh3tChbzBXKSUKHYABsK7z2YzYrjGq534PueYC");
 
+// Board cell values: 0 = empty, 1 = X, 2 = O
 const EMPTY: u8 = 0;
 const PLAYER_X_MARK: u8 = 1;
 const PLAYER_O_MARK: u8 = 2;
-const BOARD_SIZE: usize = 9;
+const BOARD_SIZE: usize = 9; // 3x3 grid = 9 cells
+
 
 #[event]
 pub struct GameCreated {
@@ -61,6 +63,14 @@ pub enum TicTacError {
     PlayerONotRegistered,
 }
 
+/// Checks if a player with the given mark has won the game.
+///
+/// # Arguments
+/// * `board` - Reference to the game board array
+/// * `mark` - The player's mark (PLAYER_X_MARK or PLAYER_O_MARK)
+///
+/// # Returns
+/// `true` if the player has a winning combination, `false` otherwise
 fn check_winner(board: &[u8; BOARD_SIZE], mark: u8) -> bool {
     const WINNING_COMBINATIONS: [[usize; 3]; 8] = [
         [0, 1, 2],
@@ -77,6 +87,13 @@ fn check_winner(board: &[u8; BOARD_SIZE], mark: u8) -> bool {
         .any(|combo| board[combo[0]] == mark && board[combo[1]] == mark && board[combo[2]] == mark)
 }
 
+/// Checks if the board is completely filled (no empty cells remaining).
+///
+/// # Arguments
+/// * `board` - Reference to the game board array
+///
+/// # Returns
+/// `true` if all cells are occupied, `false` if any cell is empty
 fn is_board_full(board: &[u8; BOARD_SIZE]) -> bool {
     board.iter().all(|&cell| cell != EMPTY)
 }
@@ -84,6 +101,12 @@ fn is_board_full(board: &[u8; BOARD_SIZE]) -> bool {
 #[program]
 pub mod tic_tac {
     use super::*;
+    
+    /// Initializes a new tic-tac-toe game.
+    ///
+    /// Creates a new game board and sets the caller as Player X. The game starts
+    /// in an active state waiting for Player O to join. A new PDA account is
+    /// created for the board using the payer's public key and game count.
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let board = &mut ctx.accounts.board_account;
         board.player_x = ctx.accounts.payer.key();
@@ -91,7 +114,7 @@ pub mod tic_tac {
         board.winner_address = Pubkey::default();
         board.current_player = board.player_x;
         board.board = [EMPTY; BOARD_SIZE as usize];
-        board.game_status = true;
+        board.is_active = true;
 
         board.game_id = ctx.accounts.user_games.game_count; // 0
         ctx.accounts.user_games.game_count =
@@ -104,27 +127,49 @@ pub mod tic_tac {
         Ok(())
     }
 
+    /// Registers Player O to join an existing game.
+    ///
+    /// Allows a second player to register as Player O for a game created by Player X.
+    /// This must be called before any moves can be made. Player O cannot be the same
+    /// as Player X, and the game must be active (not finished).
+    ///
+    /// # Requirements
+    /// * Game must be active (`is_active == true`)
+    /// * Player O slot must be empty (`player_o == Pubkey::default()`)
+    /// * Player O cannot be the same as Player X
     pub fn player_o_register(ctx: Context<RegisterPlayerO>) -> Result<()> {
-        require!(
-            ctx.accounts.board_account.game_status == true,
-            TicTacError::GameOver
-        );
+        // require!(
+        //     ctx.accounts.board_account.is_active,
+        //     TicTacError::GameOver
+        // );
 
         let board = &mut ctx.accounts.board_account;
         let player_o_key = ctx.accounts.player_o.key();
 
         require!(
-            board.player_o == Pubkey::default() && board.player_x != player_o_key,
+            board.player_x != player_o_key,
             TicTacError::PlayerAlreadyRegistered
         );
+        // require!(
+        //     board.player_o == Pubkey::default() && board.player_x != player_o_key,
+        //     TicTacError::PlayerAlreadyRegistered
+        // );
 
         board.player_o = player_o_key;
         Ok(())
     }
 
+    /// Allows Player O to rejoin an existing game they've already registered for.
+    ///
+    /// This function is useful for reconnecting to a game after disconnection.
+    /// Player O must have previously registered using `player_o_register`.
+    ///
+    /// # Requirements
+    /// * Game must be active (`is_active == true`)
+    /// * Signer must match the registered Player O
     pub fn player_o_join(ctx: Context<PlayerOJoin>) -> Result<()> {
         require!(
-            ctx.accounts.board_account.game_status == true,
+            ctx.accounts.board_account.is_active == true,
             TicTacError::GameOver
         );
         let board = &ctx.accounts.board_account;
@@ -138,6 +183,15 @@ pub mod tic_tac {
         Ok(())
     }
 
+    /// Makes a move on the game board at the specified position.
+    ///
+    /// Places the current player's mark (X or O) at the given position and checks
+    /// for win conditions or a draw. If a win or draw is detected, the game status
+    /// is set to inactive. Otherwise, the turn switches to the other player.
+    ///
+    /// # Arguments
+    /// * `position` - The board position (0-8) where the move should be made
+    ///   - Positions are laid out as: 0|1|2, 3|4|5, 6|7|8
     pub fn make_move(ctx: Context<PlayerMove>, position: u8) -> Result<()> {
         require!(position < BOARD_SIZE as u8, TicTacError::InvalidPosition);
         let board = &mut ctx.accounts.board_account;
@@ -155,16 +209,21 @@ pub mod tic_tac {
         };
 
         board.board[index] = mark;
+        emit!(MoveMade{
+            player:player_key,
+            position:position,
+            game_id:board.game_id
+        });
 
         if check_winner(&board.board, mark) {
             board.winner_address = player_key;
-            board.game_status = false;
+            board.is_active = false;
             emit!(GameWon {
                 game_id: board.game_id,
                 winner: player_key
             });
         } else if is_board_full(&board.board) {
-            board.game_status = false;
+            board.is_active = false;
             emit!(GameDraw {
                 game_id: board.game_id
             });
@@ -178,8 +237,11 @@ pub mod tic_tac {
         Ok(())
     }
 
-    /// Delegate the account to the delegation program
-    /// Set specific validator based on ER, see https://docs.magicblock.gg/pages/get-started/how-integrate-your-program/local-setup
+    /// Delegates the game board account to MagicBlock's Ephemeral Rollup.
+    ///
+    /// This transfers the board account to an ephemeral rollup validator, enabling
+    /// faster and cheaper transactions during gameplay. After delegation, moves can
+    /// be made on the ephemeral rollup with sub-second confirmation times.
     pub fn delegate(ctx: Context<DelegateBoard>) -> Result<()> {
         ctx.accounts.delegate_pda(
             &ctx.accounts.payer,
@@ -193,6 +255,11 @@ pub mod tic_tac {
         Ok(())
     }
 
+    /// Undelegates the game board account and commits all state changes back to Solana.
+    ///
+    /// This function transfers the board account back from the ephemeral rollup to
+    /// Solana's base layer, committing all moves made during ephemeral gameplay in
+    /// a single transaction. The account ownership returns to the program.
     pub fn undelegate(ctx: Context<UndelegateAndCommit>) -> Result<()> {
         let board = &mut ctx.accounts.board_account;
         
@@ -219,7 +286,7 @@ pub struct UndelegateAndCommit<'info> {
     pub board_account: Account<'info, Board>,
 }
 
-/// Add delegate function to the context
+
 #[delegate]
 #[derive(Accounts)]
 pub struct DelegateBoard<'info> {
@@ -244,14 +311,22 @@ pub struct Board {
     pub player_x: Pubkey,
     pub player_o: Pubkey,
     pub current_player: Pubkey,
+    /// The game board state as a flat array of 9 cells (0=empty, 1=X, 2=O)
+    /// Layout: [0,1,2,3,4,5, 6,7,8] represents a 3x3 grid
     pub board: [u8; BOARD_SIZE],
-    pub game_status: bool,
+    pub is_active: bool,
+    /// Unique identifier for this game (incremented per player X)
     pub game_id: u64,
 }
 
+/// Account structure tracking the number of games created by a user.
+///
+/// This PDA account stores a counter that increments each time the user creates
+/// a new game. It's used to generate unique game IDs and derive board PDAs.
 #[account]
 #[derive(InitSpace)]
 pub struct UserGameCounter {
+    /// Total number of games created by this user (used as game_id for new games)
     pub game_count: u64,
 }
 
@@ -260,7 +335,7 @@ pub struct Initialize<'info> {
     #[account(
      init_if_needed,
      payer = payer, 
-     space = 8 + Board::INIT_SPACE,
+     space = 8 + UserGameCounter::INIT_SPACE,
      seeds=[b"user_games",payer.key().as_ref()],
      bump
     )]
@@ -284,7 +359,7 @@ pub struct RegisterPlayerO<'info> {
 
     #[account(
         mut,
-        constraint = board_account.game_status == true @ TicTacError::GameOver,
+        constraint = board_account.is_active == true @ TicTacError::GameOver,
         constraint = board_account.player_o == Pubkey::default() @ TicTacError::PlayerAlreadyRegistered
     )]
     pub board_account: Account<'info, Board>,
@@ -305,9 +380,12 @@ pub struct PlayerMove<'info> {
 
     #[account(
         mut,
-        constraint = board_account.game_status == true @ TicTacError::GameOver,
+        constraint = board_account.is_active == true @ TicTacError::GameOver,
         constraint = board_account.current_player == player.key() @ TicTacError::NotYourChance,
         constraint = board_account.player_o != Pubkey::default() @ TicTacError::PlayerONotRegistered,
+        constraint = (board_account.current_player == board_account.player_x || 
+            board_account.current_player == board_account.player_o) 
+           @ TicTacError::Unauthorised
     )]
     pub board_account: Account<'info, Board>,
 }

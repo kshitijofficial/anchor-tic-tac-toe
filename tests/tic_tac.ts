@@ -150,7 +150,7 @@ testSuite("Tic-Tac-Toe Game - Ephemeral Rollups Integration", () => {
     let playerOAlreadyRegistered = false;
     try {
       const boardAccount = await program.account.board.fetch(boardPDA);
-      if (boardAccount.playerO.toString() !== "11111111111111111111111111111111") {
+      if (boardAccount.playerO.toString() !== anchor.web3.PublicKey.default.toString()) {
         playerOAlreadyRegistered = true;
         console.log("Player O is already registered, skipping registration");
       }

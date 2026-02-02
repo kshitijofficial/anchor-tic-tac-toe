@@ -1,0 +1,51 @@
+.square {
+    aspect-ratio: 1;
+    background: white;
+    border: 3px solid #e0e0e0;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #333;
+    user-select: none;
+    min-height: 100px;
+
+    &:hover {
+        background: #f0f0f0;
+        border-color: #667eea;
+        transform: scale(1.05);
+    }
+
+    &.disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    &:active:not(.disabled) {
+        transform: scale(0.95);
+    }
+
+    span {
+        display: block;
+        font-size: 3rem;
+        font-weight: 700;
+        
+        &.counter {
+            color: #333;
+        }
+
+        &.x,
+        &.X {
+            color: #667eea;
+        }
+
+        &.o,
+        &.O {
+            color: #764ba2;
+        }
+    }
+}
