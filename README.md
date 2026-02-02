@@ -20,6 +20,7 @@ The implementation includes:
 - ✅ **Ephemeral Rollups Integration**: Delegate → Play → Undelegate flow
 - ✅ **Performance Comparison**: Side-by-side benchmarks of ER vs Solana base layer
 - ✅ **Event Emission**: Game events for tracking moves, wins, and draws
+- ✅ **React Frontend**: Interactive web UI with wallet integration and real-time game updates
 
 ## Prerequisites
 
@@ -35,21 +36,30 @@ The implementation includes:
 cd anchor-tic-tac-toe
 ```
 
-2. **Install dependencies**:
+2. **Install root dependencies**:
 ```bash
 yarn install
 # or
 npm install
 ```
 
-3. **Build the program**:
+3. **Build the Solana program**:
 ```bash
 anchor build
 ```
 
-4. **Configure environment variables**:
+4. **Install frontend dependencies**:
+```bash
+cd app
+yarn install
+# or
+npm install
+cd ..
+```
 
-Create a `.env` file in the project root:
+5. **Configure environment variables**:
+
+Create a `.env` file in the project root (for tests):
 ```bash
 # Required: Player O's private key (base58 encoded from Phantom or CLI)
 PLAYER_O_PRIVATE_KEY=your_base58_encoded_private_key
@@ -66,7 +76,24 @@ solana-keygen new --outfile ~/.config/solana/player-o.json
 cat ~/.config/solana/player-o.json
 ```
 
-## Running Tests
+## Running the Application
+
+### Option 1: Run the React Frontend
+
+1. **Start the frontend development server**:
+```bash
+cd app
+yarn start
+# or
+npm start
+```
+
+2. **Open your browser**:
+   - The app will automatically open at [http://localhost:3000](http://localhost:3000)
+   - Connect your Solana wallet (Phantom, Solflare, etc.)
+   - Create or join a game and start playing!
+
+### Option 2: Run Tests
 
 **Important**: Tests must run on devnet (not localnet) to use MagicBlock's Ephemeral Rollups.
 
@@ -227,6 +254,37 @@ Board layout:
 (0 = empty, 1 = X, 2 = O)
 ```
 
+## Frontend Features
+
+The React frontend (`app/`) provides a complete user interface for playing tic-tac-toe:
+
+- **Wallet Integration**: Connect with Phantom, Solflare, or any Solana wallet adapter
+- **Game Creation**: Create new games as Player X
+- **Game Joining**: Join existing games as Player O using Player X's address and game ID
+- **Real-time Updates**: Live game state updates via WebSocket subscriptions
+- **Game Management**: View all your created and joined games
+- **Ephemeral Rollups**: Automatic delegation to ER for fast gameplay
+- **Visual Game Board**: Interactive 3x3 grid with turn indicators
+- **Game Status**: See win/draw conditions and game completion states
+
+### Frontend Architecture
+
+The frontend is built with:
+- **React 19** with TypeScript
+- **Solana Wallet Adapter** for wallet connections
+- **Anchor Client** for program interactions
+- **MagicBlock SDK** for Ephemeral Rollups integration
+- **Framer Motion** for animations
+- **SCSS** for styling
+
+Key hooks:
+- `useProgramClient`: Manages Anchor program client
+- `useEphemeralConnection`: Handles ER connection
+- `useGameActions`: Game operations (create, join, move, delegate)
+- `useGameFetching`: Fetches game state from chain
+- `useGameSubscriptions`: Real-time game state updates
+- `useTransactionSubmit`: Transaction handling
+
 ## Architecture Highlights
 
 ### Ephemeral Rollups Integration
@@ -261,6 +319,27 @@ This allows:
 - Deterministic account discovery
 - Efficient game state management
 
+## Project Structure
+
+```
+anchor-tic-tac-toe/
+├── programs/
+│   └── anchor-tic-tac-toe/
+│       └── src/
+│           └── lib.rs          # Solana program (Rust/Anchor)
+├── tests/
+│   └── tic_tac.ts              # Program tests
+├── app/                        # React frontend
+│   ├── src/
+│   │   ├── components/         # React components
+│   │   ├── hooks/              # Custom React hooks
+│   │   ├── utils/              # Utility functions
+│   │   └── App.tsx             # Main app component
+│   └── package.json
+├── Anchor.toml                  # Anchor configuration
+└── package.json                 # Root dependencies
+```
+
 ## Use Cases
 
 This example is ideal for learning how to build:
@@ -268,6 +347,7 @@ This example is ideal for learning how to build:
 - **Real-time multiplayer games** (fighting games, racing)
 - **High-frequency applications** (trading bots, auction systems)
 - **Batch state updates** (inventory systems, leaderboards)
+- **Web3 gaming applications** with wallet integration
 
 ## Resources
 
